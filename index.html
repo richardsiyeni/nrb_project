@@ -147,6 +147,48 @@
         .logout-btn:hover {
             background: #5a6268 !important;
         }
+
+        /* Weekly Totals Table Styles */
+        #weeklyTotalsTable {
+            border: 2px solid #007bff;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        #weeklyTotalsTable th {
+            background: #007bff;
+            color: white;
+            font-weight: bold;
+            padding: 12px 8px;
+            text-align: center;
+            border: 1px solid #0056b3;
+        }
+        
+        #weeklyTotalsTable td {
+            padding: 10px 8px;
+            text-align: center;
+            border: 1px solid #ddd;
+            background: #f8f9fa;
+        }
+        
+        #weeklyTotalsTable tr:nth-child(even) td {
+            background: #e9ecef;
+        }
+        
+        #weeklyTotalsTable tr:hover td {
+            background: #d1ecf1;
+        }
+        
+        .total-row {
+            background: #28a745 !important;
+            color: white !important;
+            font-weight: bold;
+        }
+        
+        .total-row td {
+            background: #28a745 !important;
+            color: white !important;
+        }
     </style>
 </head>
 <body>
@@ -254,6 +296,18 @@
             </div>
             <div class="actions">
                 <button type="button" onclick="hideCsvViewer()">Back to Form</button>
+            </div>
+        </div>
+
+        <div id="weeklyTotalsViewer" class="container" style="display:none; margin-top: 20px;">
+            <h2>Weekly Cumulative Report</h2>
+            <div style="overflow:auto;">
+                <table id="weeklyTotalsTable" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+                </table>
+            </div>
+            <div class="actions">
+                <button type="button" onclick="exportWeeklyTotals()" style="background: #28a745;">Export Weekly Totals CSV</button>
+                <button type="button" onclick="hideWeeklyTotals()">Back to Form</button>
             </div>
         </div>
     </div>
@@ -489,8 +543,9 @@
         function handleWeeklyFiles(files) {
             if (files.length === 0) return;
             
-            let totalProcessed = 0;
+            let allData = [];
             let totalErrors = 0;
+            let filesProcessed = 0;
             
             Array.from(files).forEach(file => {
                 const reader = new FileReader();
@@ -501,12 +556,15 @@
                         
                         if (lines.length < 2) {
                             totalErrors++;
+                            filesProcessed++;
+                            if (filesProcessed === files.length) {
+                                processWeeklyTotals(allData, totalErrors);
+                            }
                             return;
                         }
                         
                         // Skip header row
                         const dataLines = lines.slice(1);
-                        const entries = JSON.parse(localStorage.getItem('registrationEntries') || '[]');
                         
                         dataLines.forEach(line => {
                             const columns = line.split(',').map(col => col.replace(/"/g, '').trim());
@@ -514,7 +572,6 @@
                             if (columns.length >= 9) {
                                 const entry = {
                                     date: columns[0] || new Date().toLocaleDateString(),
-                                    timestamp: new Date().toISOString(),
                                     issuedIds: parseInt(columns[1]) || 0,
                                     expiredIds: parseInt(columns[2]) || 0,
                                     lostIds: parseInt(columns[3]) || 0,
@@ -525,44 +582,143 @@
                                     deathCerts: parseInt(columns[8]) || 0
                                 };
                                 
-                                // Check if entry already exists for this date
-                                const existingIndex = entries.findIndex(e => e.date === entry.date);
-                                if (existingIndex !== -1) {
-                                    entries[existingIndex] = entry;
-                                } else {
-                                    entries.push(entry);
-                                }
-                                totalProcessed++;
+                                allData.push(entry);
                             } else {
                                 totalErrors++;
                             }
                         });
                         
-                        localStorage.setItem('registrationEntries', JSON.stringify(entries));
-                        loadEntries();
-                        
                     } catch (error) {
                         console.error('Error processing CSV:', error);
                         totalErrors++;
+                    }
+                    
+                    filesProcessed++;
+                    if (filesProcessed === files.length) {
+                        processWeeklyTotals(allData, totalErrors);
                     }
                 };
                 
                 reader.onerror = function() {
                     totalErrors++;
+                    filesProcessed++;
+                    if (filesProcessed === files.length) {
+                        processWeeklyTotals(allData, totalErrors);
+                    }
                 };
                 
                 reader.readAsText(file);
             });
+        }
+        
+        function processWeeklyTotals(data, errors) {
+            if (data.length === 0) {
+                alert('No valid data found in CSV files!');
+                return;
+            }
             
-            // Show result after processing all files
-            setTimeout(() => {
-                if (totalProcessed > 0) {
-                    alert(`Successfully imported ${totalProcessed} entries from CSV files!`);
-                }
-                if (totalErrors > 0) {
-                    alert(`Warning: ${totalErrors} entries could not be processed.`);
-                }
-            }, 1000);
+            // Calculate cumulative totals
+            const totals = {
+                issuedIds: 0,
+                expiredIds: 0,
+                lostIds: 0,
+                damagedIds: 0,
+                newMales: 0,
+                newFemales: 0,
+                birthCerts: 0,
+                deathCerts: 0
+            };
+            
+            data.forEach(entry => {
+                totals.issuedIds += entry.issuedIds;
+                totals.expiredIds += entry.expiredIds;
+                totals.lostIds += entry.lostIds;
+                totals.damagedIds += entry.damagedIds;
+                totals.newMales += entry.newMales;
+                totals.newFemales += entry.newFemales;
+                totals.birthCerts += entry.birthCerts;
+                totals.deathCerts += entry.deathCerts;
+            });
+            
+            // Store totals for export
+            window.weeklyTotalsData = {
+                data: data,
+                totals: totals,
+                generatedDate: new Date().toLocaleDateString()
+            };
+            
+            // Display the beautiful table
+            displayWeeklyTotalsTable(data, totals);
+            
+            // Show the weekly totals viewer
+            document.getElementById('weeklyTotalsViewer').style.display = 'block';
+            document.getElementById('mainContent').style.display = 'none';
+            
+            if (errors > 0) {
+                alert(`Warning: ${errors} entries could not be processed.`);
+            }
+        }
+        
+        function displayWeeklyTotalsTable(data, totals) {
+            const table = document.getElementById('weeklyTotalsTable');
+            table.innerHTML = '';
+            
+            // Create header row
+            const headerRow = document.createElement('tr');
+            const headers = ['Date', 'Issued IDs', 'Expired IDs', 'Lost IDs', 'Damaged IDs', 'New Males', 'New Females', 'Birth Certs', 'Death Certs'];
+            headers.forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                headerRow.appendChild(th);
+            });
+            table.appendChild(headerRow);
+            
+            // Add data rows
+            data.forEach(entry => {
+                const row = document.createElement('tr');
+                const values = [
+                    entry.date,
+                    entry.issuedIds,
+                    entry.expiredIds,
+                    entry.lostIds,
+                    entry.damagedIds,
+                    entry.newMales,
+                    entry.newFemales,
+                    entry.birthCerts,
+                    entry.deathCerts
+                ];
+                
+                values.forEach(value => {
+                    const td = document.createElement('td');
+                    td.textContent = value;
+                    row.appendChild(td);
+                });
+                
+                table.appendChild(row);
+            });
+            
+            // Add totals row
+            const totalsRow = document.createElement('tr');
+            totalsRow.className = 'total-row';
+            const totalValues = [
+                'TOTAL',
+                totals.issuedIds,
+                totals.expiredIds,
+                totals.lostIds,
+                totals.damagedIds,
+                totals.newMales,
+                totals.newFemales,
+                totals.birthCerts,
+                totals.deathCerts
+            ];
+            
+            totalValues.forEach(value => {
+                const td = document.createElement('td');
+                td.textContent = value;
+                totalsRow.appendChild(td);
+            });
+            
+            table.appendChild(totalsRow);
         }
         
         function handleViewCsv(files) {
@@ -626,6 +782,45 @@
         
         function hideCsvViewer() {
             document.getElementById('csvViewer').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
+        }
+        
+        function exportWeeklyTotals() {
+            if (!window.weeklyTotalsData) {
+                alert('No weekly totals data available to export!');
+                return;
+            }
+            
+            const { data, totals, generatedDate } = window.weeklyTotalsData;
+            
+            // Create CSV content
+            let csv = 'Weekly Cumulative Report\n';
+            csv += `Generated Date: ${generatedDate}\n\n`;
+            csv += 'Date,Issued IDs,Expired IDs,Lost IDs,Damaged IDs,New Males,New Females,Birth Certificates,Death Certificates\n';
+            
+            // Add data rows
+            data.forEach(entry => {
+                csv += `"${entry.date}",${entry.issuedIds},${entry.expiredIds},${entry.lostIds},${entry.damagedIds},${entry.newMales},${entry.newFemales},${entry.birthCerts},${entry.deathCerts}\n`;
+            });
+            
+            // Add totals row
+            csv += `"TOTAL",${totals.issuedIds},${totals.expiredIds},${totals.lostIds},${totals.damagedIds},${totals.newMales},${totals.newFemales},${totals.birthCerts},${totals.deathCerts}\n`;
+            
+            // Create and download file
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('hidden', '');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'Weekly_Cummulative_Report.csv');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+        
+        function hideWeeklyTotals() {
+            document.getElementById('weeklyTotalsViewer').style.display = 'none';
             document.getElementById('mainContent').style.display = 'block';
         }
 
