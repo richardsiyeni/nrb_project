@@ -477,7 +477,157 @@
             }
         }
 
-        // ... and all your other existing functions (triggerWeeklyImport, handleWeeklyFiles, etc.)
+        // CSV Import and View Functions
+        function triggerWeeklyImport() {
+            document.getElementById('weeklyCsvFiles').click();
+        }
+        
+        function triggerViewCsv() {
+            document.getElementById('viewCsvFile').click();
+        }
+        
+        function handleWeeklyFiles(files) {
+            if (files.length === 0) return;
+            
+            let totalProcessed = 0;
+            let totalErrors = 0;
+            
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const csv = e.target.result;
+                        const lines = csv.split('\n').filter(line => line.trim());
+                        
+                        if (lines.length < 2) {
+                            totalErrors++;
+                            return;
+                        }
+                        
+                        // Skip header row
+                        const dataLines = lines.slice(1);
+                        const entries = JSON.parse(localStorage.getItem('registrationEntries') || '[]');
+                        
+                        dataLines.forEach(line => {
+                            const columns = line.split(',').map(col => col.replace(/"/g, '').trim());
+                            
+                            if (columns.length >= 9) {
+                                const entry = {
+                                    date: columns[0] || new Date().toLocaleDateString(),
+                                    timestamp: new Date().toISOString(),
+                                    issuedIds: parseInt(columns[1]) || 0,
+                                    expiredIds: parseInt(columns[2]) || 0,
+                                    lostIds: parseInt(columns[3]) || 0,
+                                    damagedIds: parseInt(columns[4]) || 0,
+                                    newMales: parseInt(columns[5]) || 0,
+                                    newFemales: parseInt(columns[6]) || 0,
+                                    birthCerts: parseInt(columns[7]) || 0,
+                                    deathCerts: parseInt(columns[8]) || 0
+                                };
+                                
+                                // Check if entry already exists for this date
+                                const existingIndex = entries.findIndex(e => e.date === entry.date);
+                                if (existingIndex !== -1) {
+                                    entries[existingIndex] = entry;
+                                } else {
+                                    entries.push(entry);
+                                }
+                                totalProcessed++;
+                            } else {
+                                totalErrors++;
+                            }
+                        });
+                        
+                        localStorage.setItem('registrationEntries', JSON.stringify(entries));
+                        loadEntries();
+                        
+                    } catch (error) {
+                        console.error('Error processing CSV:', error);
+                        totalErrors++;
+                    }
+                };
+                
+                reader.onerror = function() {
+                    totalErrors++;
+                };
+                
+                reader.readAsText(file);
+            });
+            
+            // Show result after processing all files
+            setTimeout(() => {
+                if (totalProcessed > 0) {
+                    alert(`Successfully imported ${totalProcessed} entries from CSV files!`);
+                }
+                if (totalErrors > 0) {
+                    alert(`Warning: ${totalErrors} entries could not be processed.`);
+                }
+            }, 1000);
+        }
+        
+        function handleViewCsv(files) {
+            if (files.length === 0) return;
+            
+            const file = files[0];
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const csv = e.target.result;
+                    const lines = csv.split('\n').filter(line => line.trim());
+                    
+                    if (lines.length === 0) {
+                        alert('CSV file is empty!');
+                        return;
+                    }
+                    
+                    // Parse CSV and create table
+                    const table = document.getElementById('csvTable');
+                    table.innerHTML = '';
+                    
+                    lines.forEach((line, index) => {
+                        const row = document.createElement('tr');
+                        const columns = line.split(',').map(col => col.replace(/"/g, '').trim());
+                        
+                        columns.forEach(column => {
+                            const cell = document.createElement(index === 0 ? 'th' : 'td');
+                            cell.textContent = column;
+                            cell.style.border = '1px solid #ddd';
+                            cell.style.padding = '8px';
+                            cell.style.textAlign = 'left';
+                            
+                            if (index === 0) {
+                                cell.style.backgroundColor = '#f2f2f2';
+                                cell.style.fontWeight = 'bold';
+                            }
+                            
+                            row.appendChild(cell);
+                        });
+                        
+                        table.appendChild(row);
+                    });
+                    
+                    // Show CSV viewer
+                    document.getElementById('csvViewer').style.display = 'block';
+                    document.getElementById('mainContent').style.display = 'none';
+                    
+                } catch (error) {
+                    console.error('Error reading CSV:', error);
+                    alert('Error reading CSV file!');
+                }
+            };
+            
+            reader.onerror = function() {
+                alert('Error reading file!');
+            };
+            
+            reader.readAsText(file);
+        }
+        
+        function hideCsvViewer() {
+            document.getElementById('csvViewer').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
+        }
 
     </script>
 </body>
