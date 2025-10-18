@@ -189,9 +189,32 @@
             background: #28a745 !important;
             color: white !important;
         }
+        
+        /* Emergency recovery button */
+        .emergency-recovery {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 9999;
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        
+        .emergency-recovery:hover {
+            background: #c82333;
+        }
     </style>
 </head>
 <body>
+    <!-- Emergency Recovery Button -->
+    <button class="emergency-recovery" onclick="forceViewRestoration()" title="Click if you see a blank screen">RECOVER</button>
+    
     <!-- Login Overlay -->
     <div id="loginOverlay">
         <div id="loginModal">
@@ -334,10 +357,35 @@
             return localStorage.getItem('nrbLoggedIn') === 'true';
         }
         
-        // Clean up URL hash fragments
+        // Clean up URL hash fragments - more aggressive approach
         function cleanUrl() {
-            if (window.location.hash) {
-                window.history.replaceState(null, null, window.location.pathname);
+            const currentUrl = window.location.href;
+            if (currentUrl.includes('#')) {
+                const cleanUrl = currentUrl.split('#')[0];
+                window.history.replaceState(null, null, cleanUrl);
+                console.log('URL cleaned:', cleanUrl);
+            }
+        }
+        
+        // Force view restoration - bypasses all checks
+        function forceViewRestoration() {
+            console.log('Force restoring view...');
+            cleanUrl();
+            
+            // Hide all views first
+            document.getElementById('loginOverlay').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'none';
+            document.getElementById('csvViewer').style.display = 'none';
+            document.getElementById('weeklyTotalsViewer').style.display = 'none';
+            
+            // Show appropriate view based on login status
+            if (isUserLoggedIn()) {
+                console.log('User is logged in, showing main app');
+                document.getElementById('mainContent').style.display = 'block';
+                loadEntries();
+            } else {
+                console.log('User not logged in, showing login modal');
+                document.getElementById('loginOverlay').style.display = 'flex';
             }
         }
         
@@ -445,25 +493,56 @@
             }
         });
         
-        // Ensure view is visible when window regains focus (e.g., after file picker)
+        // Aggressive view restoration on window focus
         window.addEventListener('focus', function() {
-            // Clean up URL hash if present
-            if (window.location.hash) {
-                window.history.replaceState(null, null, window.location.pathname);
-            }
-            setTimeout(ensureViewVisible, 100);
+            console.log('Window focused, forcing view restoration');
+            setTimeout(forceViewRestoration, 50);
         });
         
-        // Clean up URL on page load
+        // Clean up URL on page load and force view restoration
         window.addEventListener('load', function() {
-            cleanUrl();
+            console.log('Page loaded, cleaning URL and restoring view');
+            setTimeout(forceViewRestoration, 100);
         });
         
-        // Handle hash changes (in case something adds a hash)
+        // Handle hash changes aggressively
         window.addEventListener('hashchange', function() {
-            cleanUrl();
-            ensureViewVisible();
+            console.log('Hash changed, forcing view restoration');
+            setTimeout(forceViewRestoration, 50);
         });
+        
+        // Additional event listeners for better coverage
+        window.addEventListener('pageshow', function() {
+            console.log('Page show event, restoring view');
+            setTimeout(forceViewRestoration, 50);
+        });
+        
+        // Handle visibility change (when tab becomes visible)
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                console.log('Page became visible, restoring view');
+                setTimeout(forceViewRestoration, 50);
+            }
+        });
+        
+        // Periodic check to ensure view stays visible (every 2 seconds)
+        setInterval(function() {
+            const loginOverlay = document.getElementById('loginOverlay');
+            const mainContent = document.getElementById('mainContent');
+            const csvViewer = document.getElementById('csvViewer');
+            const weeklyTotalsViewer = document.getElementById('weeklyTotalsViewer');
+            
+            const isLoginVisible = loginOverlay.style.display === 'flex';
+            const isMainVisible = mainContent.style.display === 'block';
+            const isCsvVisible = csvViewer.style.display === 'block';
+            const isWeeklyVisible = weeklyTotalsViewer.style.display === 'block';
+            
+            // If no view is visible, force restoration
+            if (!isLoginVisible && !isMainVisible && !isCsvVisible && !isWeeklyVisible) {
+                console.log('No view visible, forcing restoration');
+                forceViewRestoration();
+            }
+        }, 2000);
         
         // Form submission
         document.getElementById('reportForm').addEventListener('submit', function(e) {
