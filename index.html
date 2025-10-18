@@ -328,10 +328,21 @@
                 showLoginModal();
             }
         }
+        
+        // Check if user is logged in without triggering UI changes
+        function isUserLoggedIn() {
+            return localStorage.getItem('nrbLoggedIn') === 'true';
+        }
 
         function showLoginModal() {
-            document.getElementById('loginOverlay').style.display = 'flex';
-            document.getElementById('mainContent').style.display = 'none';
+            // Only show if not already visible
+            if (document.getElementById('loginOverlay').style.display !== 'flex') {
+                document.getElementById('loginOverlay').style.display = 'flex';
+                document.getElementById('mainContent').style.display = 'none';
+                // Hide any other views that might be showing
+                document.getElementById('csvViewer').style.display = 'none';
+                document.getElementById('weeklyTotalsViewer').style.display = 'none';
+            }
         }
 
         function showMainApp() {
@@ -391,16 +402,10 @@
         `;
         document.head.appendChild(style);
 
-        // Check login status when page loads
-        document.addEventListener('DOMContentLoaded', checkLoginStatus);
-
-        // YOUR EXISTING JAVASCRIPT FUNCTIONS GO HERE
-        // [Copy all your existing JavaScript functions - loadEntries, saveEntry, exportToCSV, etc.]
-        // Just make sure they're after the login functions
-
-        // Load existing data when page loads
+        // Check login status when page loads (only once)
         document.addEventListener('DOMContentLoaded', function() {
-            // This will be called after login check
+            checkLoginStatus();
+            // Load existing data if logged in
             if (localStorage.getItem('nrbLoggedIn') === 'true') {
                 loadEntries();
             }
@@ -781,6 +786,10 @@
         }
         
         function hideCsvViewer() {
+            if (!isUserLoggedIn()) {
+                showLoginModal();
+                return;
+            }
             document.getElementById('csvViewer').style.display = 'none';
             document.getElementById('mainContent').style.display = 'block';
         }
@@ -820,6 +829,10 @@
         }
         
         function hideWeeklyTotals() {
+            if (!isUserLoggedIn()) {
+                showLoginModal();
+                return;
+            }
             document.getElementById('weeklyTotalsViewer').style.display = 'none';
             document.getElementById('mainContent').style.display = 'block';
         }
