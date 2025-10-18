@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NRB - Login Required</title>
+    <title>NRB</title>
     <style>
         /* Your existing styles... */
         body { 
@@ -204,7 +204,7 @@
             <button class="login-btn" onclick="attemptLogin()">Login</button>
             
             <div class="error-message" id="loginError">
-                Invalid credentials! Try again, you beautiful bastard! 😂
+                Invalid credentials! Try again!
             </div>
 
         </div>
@@ -333,6 +333,37 @@
         function isUserLoggedIn() {
             return localStorage.getItem('nrbLoggedIn') === 'true';
         }
+        
+        // Clean up URL hash fragments
+        function cleanUrl() {
+            if (window.location.hash) {
+                window.history.replaceState(null, null, window.location.pathname);
+            }
+        }
+        
+        // Ensure at least one view is visible
+        function ensureViewVisible() {
+            cleanUrl(); // Clean URL first
+            
+            const loginOverlay = document.getElementById('loginOverlay');
+            const mainContent = document.getElementById('mainContent');
+            const csvViewer = document.getElementById('csvViewer');
+            const weeklyTotalsViewer = document.getElementById('weeklyTotalsViewer');
+            
+            const isLoginVisible = loginOverlay.style.display === 'flex';
+            const isMainVisible = mainContent.style.display === 'block';
+            const isCsvVisible = csvViewer.style.display === 'block';
+            const isWeeklyVisible = weeklyTotalsViewer.style.display === 'block';
+            
+            // If no view is visible, show the appropriate one
+            if (!isLoginVisible && !isMainVisible && !isCsvVisible && !isWeeklyVisible) {
+                if (isUserLoggedIn()) {
+                    showMainApp();
+                } else {
+                    showLoginModal();
+                }
+            }
+        }
 
         function showLoginModal() {
             // Only show if not already visible
@@ -348,6 +379,9 @@
         function showMainApp() {
             document.getElementById('loginOverlay').style.display = 'none';
             document.getElementById('mainContent').style.display = 'block';
+            // Ensure other views are hidden
+            document.getElementById('csvViewer').style.display = 'none';
+            document.getElementById('weeklyTotalsViewer').style.display = 'none';
             loadEntries(); // Load your existing data
         }
 
@@ -409,6 +443,26 @@
             if (localStorage.getItem('nrbLoggedIn') === 'true') {
                 loadEntries();
             }
+        });
+        
+        // Ensure view is visible when window regains focus (e.g., after file picker)
+        window.addEventListener('focus', function() {
+            // Clean up URL hash if present
+            if (window.location.hash) {
+                window.history.replaceState(null, null, window.location.pathname);
+            }
+            setTimeout(ensureViewVisible, 100);
+        });
+        
+        // Clean up URL on page load
+        window.addEventListener('load', function() {
+            cleanUrl();
+        });
+        
+        // Handle hash changes (in case something adds a hash)
+        window.addEventListener('hashchange', function() {
+            cleanUrl();
+            ensureViewVisible();
         });
         
         // Form submission
@@ -538,15 +592,20 @@
 
         // CSV Import and View Functions
         function triggerWeeklyImport() {
+            cleanUrl(); // Clean URL before opening file picker
             document.getElementById('weeklyCsvFiles').click();
         }
         
         function triggerViewCsv() {
+            cleanUrl(); // Clean URL before opening file picker
             document.getElementById('viewCsvFile').click();
         }
         
         function handleWeeklyFiles(files) {
-            if (files.length === 0) return;
+            if (files.length === 0) {
+                ensureViewVisible();
+                return;
+            }
             
             let allData = [];
             let totalErrors = 0;
@@ -658,6 +717,8 @@
             // Show the weekly totals viewer
             document.getElementById('weeklyTotalsViewer').style.display = 'block';
             document.getElementById('mainContent').style.display = 'none';
+            document.getElementById('loginOverlay').style.display = 'none';
+            document.getElementById('csvViewer').style.display = 'none';
             
             if (errors > 0) {
                 alert(`Warning: ${errors} entries could not be processed.`);
@@ -727,7 +788,10 @@
         }
         
         function handleViewCsv(files) {
-            if (files.length === 0) return;
+            if (files.length === 0) {
+                ensureViewVisible();
+                return;
+            }
             
             const file = files[0];
             const reader = new FileReader();
@@ -771,6 +835,8 @@
                     // Show CSV viewer
                     document.getElementById('csvViewer').style.display = 'block';
                     document.getElementById('mainContent').style.display = 'none';
+                    document.getElementById('loginOverlay').style.display = 'none';
+                    document.getElementById('weeklyTotalsViewer').style.display = 'none';
                     
                 } catch (error) {
                     console.error('Error reading CSV:', error);
